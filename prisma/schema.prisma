@@ -1,0 +1,174 @@
+// Prisma schema is kept for reference and optional tooling.
+// The authoritative schema lives in /supabase/migrations/*.sql.
+// `prisma db pull` can re-sync this file if you prefer the ORM.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Building {
+  id        String   @id
+  code      String
+  name      String
+  address   String   @default("")
+  units     Int      @default(0)
+  floors    Int      @default(0)
+  notes     String   @default("")
+  image_url String?
+  created_at DateTime @default(now())
+
+  tenants             Tenant[]
+  maintenanceRequests MaintenanceRequest[]
+  qualityReports      QualityReport[]
+  reviews             Review[]
+  broadcasts          Broadcast[]
+}
+
+model AdminUser {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String
+  password_hash  String
+  role           String   @default("admin")
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  last_login_at  DateTime?
+
+  ticketMessages TicketMessage[]
+}
+
+model Tenant {
+  id           String   @id
+  auth_user_id String?  @unique
+  name         String
+  email        String   @unique
+  phone        String   @default("")
+  unit         String
+  buildingId   String
+  push_token   String?
+  is_verified  Boolean  @default(false)
+  created_at   DateTime @default(now())
+  building     Building @relation(fields: [buildingId], references: [id])
+
+  maintenanceRequests MaintenanceRequest[]
+  documents           Document[]
+  qualityReports      QualityReport[]
+  reviews             Review[]
+  ticketMessages      TicketMessage[]
+}
+
+model Technician {
+  id       String @id
+  name     String
+  trade    String
+  phone    String @default("")
+  zone     String @default("")
+  status   String @default("Available")
+  jobs     Int    @default(0)
+  rating   Decimal @default(0.0)
+  created_at DateTime @default(now())
+
+  maintenanceRequests MaintenanceRequest[]
+}
+
+model MaintenanceRequest {
+  id             String   @id
+  tenantId       String
+  tenantName     String
+  buildingId     String
+  unit           String
+  category       String
+  title          String
+  location       String   @default("")
+  description    String
+  status         String   @default("Pending")
+  preferredTime  String   @default("")
+  attachments    Int      @default(0)
+  submittedAt    DateTime @default(now())
+  technicianId   String?
+  technicianName String?
+  slaHours       Int      @default(48)
+  rating         Int?
+  updated_at     DateTime @default(now())
+
+  tenant     Tenant      @relation(fields: [tenantId],     references: [id])
+  building   Building    @relation(fields: [buildingId],   references: [id])
+  technician Technician? @relation(fields: [technicianId], references: [id])
+  timeline   TicketMessage[]
+  reviews    Review[]
+}
+
+model TicketMessage {
+  id          String   @id
+  requestId   String
+  author      String
+  author_kind String   @default("admin")
+  tenantId    String?
+  adminId     String?
+  message     String
+  at          DateTime @default(now())
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id])
+  tenant  Tenant?            @relation(fields: [tenantId],  references: [id])
+  admin   AdminUser?         @relation(fields: [adminId],   references: [id])
+}
+
+model Document {
+  id          String   @id
+  tenantId    String
+  type        String
+  fileName    String
+  fileUrl     String?
+  status      String   @default("Pending")
+  note        String   @default("")
+  submittedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model QualityReport {
+  id          String   @id
+  tenantId    String
+  buildingId  String
+  category    String
+  title       String
+  description String
+  status      String   @default("Pending")
+  attachments Int      @default(0)
+  submittedAt DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId],   references: [id])
+  building Building @relation(fields: [buildingId], references: [id])
+}
+
+model Review {
+  id         String   @id
+  tenantId   String
+  buildingId String
+  requestId  String?
+  rating     Int
+  comment    String   @default("")
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant              @relation(fields: [tenantId],   references: [id])
+  building Building            @relation(fields: [buildingId], references: [id])
+  request  MaintenanceRequest? @relation(fields: [requestId],  references: [id])
+}
+
+model Broadcast {
+  id           String   @id
+  buildingId   String
+  title        String
+  message      String
+  sentBy       String   @default("Admin")
+  createdAt    DateTime @default(now())
+  displayUntil DateTime
+  dismissedBy  String[] @default([])
+
+  building Building @relation(fields: [buildingId], references: [id])
+}
